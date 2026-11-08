@@ -1,9 +1,8 @@
 import { ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
 import { createEmbed } from '../utils/embeds.js';
 import { logger } from '../utils/logger.js';
-import { handleInteractionError, createError, ErrorTypes } from '../utils/errorHandler.js';
 
-const TARGET_CHANNEL_ID = '1569049476675403866'; // Your main target channel where the embed goes
+const TARGET_CHANNEL_ID = '1569049476675403866'; // Your target channel
 const EVENTS_CHANNEL_ID = '1553825420137472010';
 const UPDATES_CHANNEL_ID = '1553825401971679424';
 
@@ -11,18 +10,23 @@ export default {
     name: 'ready',
     once: true,
     async execute(client) {
-        logger.info(`Ready event triggered for Palm Creation panel setup.`);
+        logger.info(`Ready event triggered. Attempting to send Palm Creation panel to channel: ${TARGET_CHANNEL_ID}`);
 
         try {
-            // Fetch the specific channel directly from cache or API across guilds
-            const targetChannel = await client.channels.fetch(TARGET_CHANNEL_ID).catch(() => null);
+            // 1. Force fetch the channel directly via Discord API to bypass cache misses
+            const targetChannel = await client.channels.fetch(TARGET_CHANNEL_ID).catch((err) => {
+                console.error(`[CRITICAL] Failed to fetch channel ${TARGET_CHANNEL_ID}:`, err.message);
+                return null;
+            });
 
             if (!targetChannel) {
-                logger.warn(`Palm Creation target channel (${TARGET_CHANNEL_ID}) could not be found.`);
+                logger.error(`Could not find channel ${TARGET_CHANNEL_ID}. Ensure the bot is in the server and the ID is correct.`);
                 return;
             }
 
-            // 1. Build the Embed using project utility
+            console.log(`[SUCCESS] Found channel "${targetChannel.name}" in guild "${targetChannel.guild.name}" (${targetChannel.guild.id})`);
+
+            // 2. Build the Embed
             const embed = createEmbed({
                 title: 'Palm Creation',
                 description: 
@@ -36,7 +40,7 @@ export default {
                     'Click below for more specific information!'
             }).setColor(0x0099ff);
 
-            // 2. Build the Interactive Dropdown Menu
+            // 3. Build the Select Menu
             const selectMenu = new StringSelectMenuBuilder()
                 .setCustomId('info_select')
                 .setPlaceholder('Rules Selection')
@@ -53,16 +57,21 @@ export default {
 
             const row = new ActionRowBuilder().addComponents(selectMenu);
 
-            // 3. Automatically send the message with the dropdown menu to the channel
+            // 4. Send the message to the target channel
             await targetChannel.send({
                 embeds: [embed],
                 components: [row],
             });
 
-            logger.info(`Palm Creation embed and dropdown menu sent successfully to channel ${TARGET_CHANNEL_ID}!`);
+            logger.info(`Palm Creation panel successfully sent to channel ${TARGET_CHANNEL_ID}!`);
+            console.log(`[SUCCESS] Palm Creation panel posted to #${targetChannel.name}!`);
+
         } catch (error) {
+            console.error('[CRITICAL ERROR] Failed to send startup embed:', error);
             logger.error('Error automatically sending Palm Creation startup panel:', {
-                error: error.message,
+                message: error.message,
+                code: error.code,
+                status: error.status,
                 stack: error.stack
             });
         }
@@ -71,7 +80,7 @@ export default {
 
 /**
  * Global component interaction handler for the dropdown menu.
- * Make sure to hook this up in your main interactionCreate router!
+ * Hook this into your main interactionCreate router.
  */
 export async function handlePalmCreationSelect(interaction) {
     if (!interaction.isStringSelectMenu()) return;
