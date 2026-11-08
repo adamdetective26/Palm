@@ -3,7 +3,7 @@ import { createEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 
-// Configuration IDs from your original script
+const TARGET_CHANNEL_ID = '1569049476675403866'; // Your main target channel
 const EVENTS_CHANNEL_ID = '1553825420137472010';
 const UPDATES_CHANNEL_ID = '1553825401971679424';
 
@@ -24,7 +24,17 @@ export default {
         }
 
         try {
-            // 1. Build the Embed using your project's createEmbed utility
+            // Fetch the specific channel directly from the guild
+            const targetChannel = await interaction.guild.channels.fetch(TARGET_CHANNEL_ID);
+
+            if (!targetChannel) {
+                await InteractionHelper.safeEditReply(interaction, {
+                    content: 'Could not find the specified target channel.'
+                });
+                return;
+            }
+
+            // 1. Build Embed
             const embed = createEmbed({
                 title: 'Palm Creation',
                 description: 
@@ -38,37 +48,31 @@ export default {
                     'Click below for more specific information!'
             }).setColor(0x0099ff);
 
-            // 2. Build the Interactive Dropdown Menu
+            // 2. Build Select Menu
             const selectMenu = new StringSelectMenuBuilder()
                 .setCustomId('info_select')
                 .setPlaceholder('Rules Selection')
                 .addOptions([
-                    {
-                        label: 'Events Information',
-                        value: 'events_info',
-                    },
-                    {
-                        label: 'Updates',
-                        value: 'updates_info',
-                    },
+                    { label: 'Events Information', value: 'events_info' },
+                    { label: 'Updates', value: 'updates_info' },
                 ]);
 
             const row = new ActionRowBuilder().addComponents(selectMenu);
 
-            // 3. Send the message back to the channel where the command was run
-            await interaction.channel.send({
+            // 3. Send directly to the target channel
+            await targetChannel.send({
                 embeds: [embed],
                 components: [row],
             });
 
             await InteractionHelper.safeEditReply(interaction, { 
-                content: 'Palm Creation panel successfully deployed to this channel!' 
+                content: `Palm Creation panel successfully sent to <#${TARGET_CHANNEL_ID}>!` 
             });
 
-            logger.info(`PalmCreation command executed`, {
+            logger.info(`PalmCreation panel sent to channel`, {
                 userId: interaction.user.id,
                 guildId: interaction.guildId,
-                channelId: interaction.channelId
+                targetChannelId: TARGET_CHANNEL_ID
             });
         } catch (error) {
             logger.error(`Error executing PalmCreation command`, {
@@ -77,13 +81,13 @@ export default {
                 userId: interaction.user.id,
                 guildId: interaction.guildId
             });
+
             await InteractionHelper.safeEditReply(interaction, { 
-                content: 'An error occurred while deploying the panel.' 
+                content: `Failed to send message: ${error.message}` 
             });
         }
     },
 
-    // 4. Handle the dropdown selection interaction
     async handleComponent(interaction) {
         if (!interaction.isStringSelectMenu()) return;
 
